@@ -1,11 +1,9 @@
 import React, { Component } from 'react';
 import config from '../../config';
-import ConditionalsContext from '../../contexts/ConditionalsContext';
-import AliensContext from '../../contexts/AliensContext'
-import AliensApiService from '../../services/aliens-api-service';
 import AlienList from '../../components/AlienList/AlienList';
+import StructureList from '../../components/StructureList/StructureList'
 import AlienBuilder from '../../components/AlienBuilder/AlienBuilder';
-import StructuresBuilder from '../../components/StructuresBuilder/StructuresBuilder';
+import StructureConstructor from '../../components/StructureConstructor/StructureConstructor';
 import Tasks from '../../components/Tasks/Tasks';
 import './GameplayScreen.css';
 
@@ -15,19 +13,8 @@ class GameplayScreen extends Component {
     this.state = {
       buildAliensMode: false,
       buildStructuresMode: false,
-      aliensAPI: [],
-      aliens: [
-        {
-          alienid: 0,
-          alien_name: "Worker Drone",
-          hp: 1,
-          atk: 1,
-          biomass_cost: 5,
-          synapse_required: 1,
-          description: 'Simple alien. Gathers Biomass for the growth of the Brood.',
-          special_features: null,
-        }
-      ],
+      aliens: [],
+      alienInventory: [],
       statusAPI: {},
       status: {
         userid: 0,
@@ -52,32 +39,26 @@ class GameplayScreen extends Component {
     };
   };
 
-  static contextType = AliensContext
+  // static contextType = AliensContext
 
   componentDidMount() {
-    AliensApiService.getAliens()
-      .then(this.context.setAliens)
-      .then(console.log(this.context))
-      .catch(this.context.setError)
+    Promise.all([
+      fetch(`${config.API_ENDPOINT}/aliens`)
+    ])
+      .then(([aliensRes]) => {
+        if (!aliensRes.ok)
+          return aliensRes.json().then(event => Promise.reject(event))
+        return Promise.all([
+          aliensRes.json(),
+        ])
+      })
+      .then(([aliens]) => {
+        this.setState({ aliens })
+      })
+      .catch(error => {
+        console.log({error})
+      })
   };
-
-  //   Promise.all([
-  //     fetch(`${config.API_ENDPOINT}/aliens`)
-  //   ])
-  //     .then(([aliensRes]) => {
-  //       if (!aliensRes.ok)
-  //         return aliensRes.json().then(event => Promise.reject(event))
-  //       return Promise.all([
-  //         aliensRes.json(),
-  //       ])
-  //     })
-  //     .then(([aliensAPI]) => {
-  //       this.setState({ aliensAPI })
-  //     })
-  //     .catch(error => {
-  //       console.log({error})
-  //     });
-  // };
 
   //ALL HANDLERS FOR CONDITIONAL CHANGES
   handleBuildModeChange() {
@@ -107,11 +88,10 @@ class GameplayScreen extends Component {
   //ALL HANDLERS FOR SPAWNING ALIENS
   handleClickAlienBuilder = () => {
     this.setState({buildAliensMode: true});
-    // this.context.handleBuildAliensModeChange();
     this.handleBuildModeChange();
   };
 
-  handleAddBuild = () => {
+  handleAddSpawn = () => {
     console.log('adding');
     let oldCost = this.state.cost;
     const newCost = oldCost +=5;
@@ -133,11 +113,16 @@ class GameplayScreen extends Component {
 
   handleClickSpawn = () => {
     this.setState({buildAliensMode: false});
-    // this.context.handleBuildAliensModeChange();
     let newCount = this.state.toBuild;
-    let aliens = this.context.aliens;
+    let aliens = this.state.aliens;
     aliens[0] = {...aliens[0], toBuild: newCount} 
     this.setState({ aliens })
+    this.handleBuildModeChange();
+  };
+
+  handleClickCancel = () => {
+    this.setState({buildAliensMode: false});
+    this.setState({buildStructuresMode: false});
     this.handleBuildModeChange();
   };
 
@@ -189,17 +174,12 @@ class GameplayScreen extends Component {
           <section className='gameplay-style reaction-mode'>
             <div className='left aliens-box'>
             <h2>Aliens</h2>
-              {/* <AlienList aliens={this.state.aliens} alienInventory={this.state.status.alienInventory} count={this.state.count} toBuild={this.state.toBuild} /> */}
-              <AlienList alienInventory={this.state.status.alienInventory} count={this.state.count} toBuild={this.state.toBuild} />
+              <AlienList alienInventory={this.state.alienInventory} count={this.state.count} toBuild={this.state.toBuild} />
               <button className='build-aliens-button' disabled>Spawn Aliens</button>
             </div>
             <div className='right alien-structures-box'>
               <h2>Alien Stuctures</h2>
-              <ul>
-                <li>1 Synapse Cluster</li>
-                {/* <li>3 Watcher Orbs</li> */}
-                <li>1 Spawning Pit</li>
-              </ul>
+              <StructureList count={this.state.count} toBuild={this.state.toBuild} />
               <button className='build-structures-button' disabled>Build Alien Stuctures</button>
             </div>
             <div>{this.renderBuilders()}</div>
@@ -231,17 +211,12 @@ class GameplayScreen extends Component {
           <section className='gameplay-style'>
             <div className="left aliens-box">
             <h2>Aliens</h2>
-              {/* <AlienList aliens={this.state.aliens} alienInventory={this.state.status.alienInventory} count={this.state.count} toBuild={this.state.toBuild} /> */}
-              <AlienList alienInventory={this.state.status.alienInventory} count={this.state.count} toBuild={this.state.toBuild} />
+              <AlienList alienInventory={this.state.alienInventory} count={this.state.count} toBuild={this.state.toBuild} />
               <button className='build-aliens-button' onClick={() => this.handleClickAlienBuilder()}>Spawn Aliens</button>
             </div>
             <div className="right alien-structures-box">
               <h2>Alien Structures</h2>
-              <ul>
-                <li>1 Synapse Cluster</li>
-                {/* <li>3 Watcher Orbs</li> */}
-                <li>1 Spawning Pit</li>
-              </ul>
+              <StructureList count={this.state.count} toBuild={this.state.toBuild} />
               <button className='build-structures-button' onClick={() => this.handleClickStructureBuilder()}>Build Alien Stuctures</button>
             </div>
           <div>{this.renderBuilders()}</div>
@@ -252,23 +227,26 @@ class GameplayScreen extends Component {
   };
 
   renderBuilders() {
-    const { aliens = [] } = this.context
+    const { aliens = [] } = this.state
+
     if (this.state.buildAliensMode === true) {
       return (
-        // <AlienBuilder aliens={this.state.aliens} cost={this.state.cost} toBuild={this.state.toBuild}
-        //   handleClickAdd={this.handleAddBuild} handleClickSubtract={this.handleSubtractBuild} handleClickSpawn={this.handleClickSpawn}
-        // />
-        <AlienBuilder aliens={aliens} cost={this.state.cost} toBuild={this.state.toBuild}
-          handleClickAdd={this.handleAddBuild} handleClickSubtract={this.handleSubtractBuild} handleClickSpawn={this.handleClickSpawn}
-        />
-      );
+        <div>
+          {aliens.filter(alien => alien.buildable === true)
+            .filter(buildableAlien => buildableAlien.building === true)
+              .map(filteredAlien => (
+                <AlienBuilder alien={filteredAlien} handleClickCancel={this.handleClickCancel} handleClickSpawn={this.handleClickSpawn} />
+              ))
+          }
+        </div>
+      )
     } else if (this.state.buildStructuresMode === true) {
       return (
-        <StructuresBuilder handleClickConstruct={this.handleClickConstruct} />
+        <StructureConstructor handleClickCancel={this.handleClickCancel} handleClickConstruct={this.handleClickConstruct} />
       );
     } else if (this.props.taskMode === true) {
       return (
-        <Tasks aliens={this.context.aliens}
+        <Tasks aliens={aliens}
           handleClickCancel={this.handleCancelTasks} handleClickCommit={this.handleCommitTasks}/>
       );
     } else {
@@ -277,7 +255,8 @@ class GameplayScreen extends Component {
   };
 
   render() {
-    console.log(this.context.aliens)
+    console.log(this.state.aliens)
+    console.log(this.state.alienInventory)
     return (
       <div>{this.renderGameplay()}</div>
     );

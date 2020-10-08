@@ -1,0 +1,14 @@
+.list-box {
+  display: flex;
+  flex: 2;
+  flex-direction: row;
+}
+
+.left-list {
+  flex: 1;
+  text-align: right;
+}
+
+ul {
+  justify-content: right;
+}
